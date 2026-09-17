@@ -6,4 +6,4 @@ Link: https://socialblade.com/instagram/lists/top/100/followers
 
 The frontend of the site displays data using a mix of HTML, CSS, and JS.
 
-![Webtools Hover](source-and-style/images/webtoolsfiletree.png)
+![Webtools Hover](images/webtoolsfiletree.png)
