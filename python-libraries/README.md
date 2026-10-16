@@ -1,6 +1,6 @@
 # Marvel Rivals Tierlist: CLI Homework
 
-This project
+This project collects tierlist information for marvel rivals heros. This data is opinion-based for heros, so it's good for seeing community rankings for heros to get a better picture of hero attitudes in the community.
 
 ## It collects
 
