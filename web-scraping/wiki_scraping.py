@@ -40,15 +40,10 @@ def fetch_soup(url):
 
     return BeautifulSoup(response.text, "html.parser")
 
-def is_heading(tag): 
-    if tag.name in ("h2", "h3", "h4"):
+def is_next_section(tag):
+    classes = tag.get("class") or []
+    if tag.name == "h2" or "mw-heading2" in classes:
         return True
-    
-    classes = tag.get("class") or []   # get("class") returns None if there's no class
-    for c in classes:
-        if c.startswith("mw-heading"):
-            return True
-    
     return False
     
 def get_spawn_text(soup):
@@ -61,7 +56,7 @@ def get_spawn_text(soup):
 
     # append text until we hit another header
     for sibling in start.find_next_siblings():
-        if is_heading(sibling):      # next header of any level: stop
+        if is_next_section(sibling):      # next header of any level: stop
             break
         text = sibling.get_text(" ", strip=True)
         if text:
