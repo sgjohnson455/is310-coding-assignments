@@ -9,22 +9,19 @@ from rich.table import Table
 
 # Project Constants -----
 BASE_URL = "https://minecraft.wiki"
-TRADING_URL = f"{BASE_URL}/w/Trading"
+MOBS_URL = f"{BASE_URL}/w/Mob"
 
 REQUEST_DELAY = 1.0       
-MAX_ITEM_PAGES = 10   # testing this
-EXCLUDE_ITEMS = {"Emerald"}  # emeralds mentioned a lot in these tables
 
-OUTPUT = "web-scraping/minecraft_trades.csv"
+OUTPUT = "minecraft_mobs.csv"
 
 console = Console()
 
 #Introduce ourselves ----
 HEADERS = {"User-Agent": "is310-course-scraper/1.0 (student project; sjohn241@illinois.edu)"}
-#response = requests.get("https://minecraft.wiki/w/Trading", headers=HEADERS, timeout=10)
 
-#Site is in fact active: 200
-#print(response.status_code)
+#csv field names
+FIELDNAMES = ["mob", "url", "spawn_description"]
 
 # Functions ---------------------
 
@@ -43,138 +40,105 @@ def fetch_soup(url):
 
     return BeautifulSoup(response.text, "html.parser")
 
-# Function: Finds the tables containing trades on the main trading page
-def find_trade_tables(soup):
-    parsed_trades = [] 
-    in_trade_offers = False # true if we are between headers for trade offers and wandering trader
-    profession = None
+def is_heading(tag): 
+    if tag.name in ("h2", "h3", "h4"):
+        return True
+    
+    classes = tag.get("class") or []   # get("class") returns None if there's no class
+    for c in classes:
+        if c.startswith("mw-heading"):
+            return True
+    
+    return False
+    
+def get_spawn_text(soup):
+    header = soup.find(id="Spawning")
+    if header is None:
+        return None   # this page has no Spawning section
+    start = header.find_parent("div", class_="mw-heading") or header
 
-    for element in soup.find_all(["h2", "h3", "h4", "table"]):
-        if element.name == "table":
-            # check if in header range + table is correct (trade tables have 'Villager wants' text)
-            if in_trade_offers and "Villager wants" in element.get_text():
-                parsed_trades.append((profession, element))
-            continue
+    parts = []
 
-        title = element.get_text(" ", strip=True)
-
-        # Before the section starts: ignore everything until "Trade offers"
-        if not in_trade_offers:
-            if title.startswith("Trade offers"):
-                in_trade_offers = True
-            continue
-
-        # Inside the section: stop at the Wandering Trader or the next top-level section
-        if title.startswith("Wandering Trader"):
+    # append text until we hit another header
+    for sibling in start.find_next_siblings():
+        if is_heading(sibling):      # next header of any level: stop
             break
-        if element.name == "h2":
-            break
+        text = sibling.get_text(" ", strip=True)
+        if text:
+            parts.append(text)
 
-            # tag our trade with the profession of the table it comes from 
-        profession = title
-
-    return parsed_trades
-
-# for parsing cells - handles cases where items may have ranges
-def parse_item_cell(cell):
-    """Return (text, quantity, item_names). A range like '19–33 ×' becomes its average."""
-    text = cell.get_text(" ", strip=True)
-    match = re.match(r"(\d+)(?:\s*[–-]\s*(\d+))?\s*×", text)
-
-    if match:
-        low = int(match.group(1))
-        high = int(match.group(2)) if match.group(2) else low
-        quantity = (low + high) / 2
-        if quantity.is_integer():
-            quantity = int(quantity)
+    # return the spawn text joined, or simply return None
+    if parts:
+        return " ".join(parts)
     else:
-        quantity = 1
-
-    names = [span.get_text(strip=True) for span in cell.find_all("span", class_="sprite-text")]
-    return text, quantity, names
-
-# gets info for prices
-def get_price_info(wants_qty, wants_names, gets_qty, gets_names):
-    """Emerald price of ONE unit, for simple item <-> emerald trades."""
-    if wants_names == ["Emerald"] and len(gets_names) == 1 and gets_names[0] != "Emerald":
-        return "player_buys", gets_names[0], round(wants_qty / gets_qty, 5)
-    if gets_names == ["Emerald"] and len(wants_names) == 1 and wants_names[0] != "Emerald":
-        return "player_sells", wants_names[0], round(gets_qty / wants_qty, 5)
-    return "other", "", None
-
-# save info to a csv
+        return None
+    
+# save records to the csv 
 def save_csv(records, output_path):
-    if not records:
-        console.print(f"[yellow]No records to save to {output_path}[/yellow]")
-        return
-
     with open(output_path, "w", newline="", encoding="utf-8") as file:
-        writer = csv.DictWriter(file, fieldnames=records[0].keys())
+        writer = csv.DictWriter(file, fieldnames=FIELDNAMES)
         writer.writeheader()
         writer.writerows(records)
-
 
 # MAIN CODE ---------------------------
 
 # main data
-tables = [] # stores the names of the tables
-trades = []
+soup = fetch_soup(MOBS_URL)
+mob_links = []
+seen = set()
+records = []
 
+correct_range = False
 
-trading_soup = fetch_soup(TRADING_URL)
+# First level scraping: obtaining a link for each mob on the mobs page (that is applicable)
 
-print(trading_soup)
-
-if trading_soup is None:
-    print("Fetched page is empty") # do nothing
+if soup is None:
+    console.print("[red]Fetched page is empty[/red]")
 else:
-    #print(trading_soup.title.get_text()) # check page output
+    for element in soup.find_all(["h2", "h3", "h4", "a"]):
+
+        # get correct range for element search ---------------
+        if element.name != "a":
+            title = element.get_text(" ", strip=True)
+            if title == "List of mobs":
+                correct_range = True
+            elif title == "Upcoming mobs":
+                break
+            continue
+        if not correct_range:
+            continue
+
+        # find the name link inside each mob
+        if element.find_parent("div", class_="mob-name") is None:
+            continue
+        href = element["href"] if element.has_attr("href") else None
+        if not href or not href.startswith("/w/") or ":" in href:
+            continue
+        if "Mentioned_features" in href: # they have some placeholder mobs in there
+            continue
+
+        # append url of mob link
+        url = BASE_URL + href.split("#")[0] # url pattern uses a # as a seperator
+        if url not in seen:
+            seen.add(url)
+            mob_links.append([element.get_text(strip=True), url])
+
     
 
-    for element in trading_soup.find_all(["h2", "h3", "h4"]):
-        print(element.name, "|", element.get_text(" ", strip=True))
 
+# Second level scraping: visiting each page and getting the spawning info from them
 
-
-
-
-    # # get initial tables
-    # for table in trading_soup.find_all("table"):
-    #     if "Villager wants" in table.get_text():
-    #         tables.append(table)
-
-    # for table in tables:
-    #     heading = table.find_previous(["h2", "h3", "h4"])
-    #     profession = heading.get_text(" ", strip=True)
-    #     level = None
-
-    #     for row in table.find_all("tr"):
-    #         # the level lives in a <th>; remember it for rows that omit it
-    #         th = row.find("th")
-    #         if th is not None:
-    #             level = th.get_text(" ", strip=True)
-
-    #         cells = row.find_all("td")
-    #         if len(cells) != 7:
-    #             continue
-
-    #         wants_text, wants_qty, wants_names = parse_item_cell(cells[2])
-    #         gets_text, gets_qty, gets_names = parse_item_cell(cells[3])
-    #         direction, item, price = get_price_info(wants_qty, wants_names, gets_qty, gets_names)
-
-    #         trades.append({
-    #             "profession": profession,
-    #             "level": level,
-    #             "wants": wants_text,
-    #             "receives": gets_text,
-    #             "direction": direction,
-    #             "item": item,
-    #             "emerald_price_per_unit": price,
-    #         })
-
-    # print(f"Collected {len(trades)} trades")
-    # print(trades[:3])
-
-    # save_csv(trades, OUTPUT)
-    # console.print(f"[green]Saved {len(trades)} trades to {OUTPUT}[/green]")
+#for name, url in mob_links:
+for name, url in mob_links:
+    console.print(f"Scraping {name}...") # let me know which mob is being scraped
+    mob_soup = fetch_soup(url)
+    if mob_soup is None:
+        continue
+    records.append({
+        "mob": name,
+        "url": url.split("#")[0],
+        "spawn_description": get_spawn_text(mob_soup),
+    })
     
+save_csv(records, OUTPUT)
+console.print(f"Saved {len(records)} mobs to {OUTPUT}")

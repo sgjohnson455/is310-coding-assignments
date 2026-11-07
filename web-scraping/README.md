@@ -11,16 +11,13 @@ Some of the AI it forbids from the site includes:
 - Claude related bots
 - Some google-related bots
 
-## Data I will be scraping: Trades in Minecraft
+## Data I will be scraping: Mob Spawning Methods in Minecraft
 
-One thing that I always found tricky as a player in Minecraft was understanding the trading system. For anyone unfamiliar, villagers are a mob in Minecraft that are stand-ins for NPCs, and they offer a variety of resources purchased through their currency of emeralds, and some unique items. This mechanic is called trading. Additionally when I played the game, one feature I remember about villagers is that they are stingy about trades and will make cost-effective trades for themselves.
+One thing that every Minecraft player cares about is automating mob loot collection. For example, it's very helpful in the early game to have a consistent source of food, so a lot of players will make a cow farm, or a chicken farm. Late game, players may make mob farms to collect higher-tier loot from more dangerous mobs, such as skeletons or zombies, without endangering themselves. I've constantly had to check the wiki while playing the game to figure out what spawning methods mobs can use to be able to start making my own farms.
 
-My questions I wish to solve with this project are: 
-- Which items are cheapest and most expensive per unit in villager trades, measured in emeralds?
-- For items that villagers both buy and sell, how large is the gap between the two prices? In other words, how much is the player getting ripped off for?
+One other thing that the Minecraft community really likes is creating multiple mob spawners. Hopefully by scraping the spawning data for mobs and putting it into a big list for researchers, it will serve as a useful source for creating multiple mob spawners, as well as creating safe zones where no mobs will spawn.
 
-## My method for web-scraping
+## Reflection 
 
-The main Trading page on the minecraft wiki is setup with clear headers, and contains the information we need to scrap 2nd level information regarding trades. 
+The data I collected is useful, but only if parsed and utilized correctly. For now it mostly compiles the spawning information for Minecraft players. In the future if re-run on the site, it will also work for any added mobs, as long as the structure of the site does not change. 
 
-To get individual trade data which will be the starting point for the data in our csv, I first run a check of each header to find where 'Trade Offers' begins. I also check for where 'Wandering Villager Trades' header starts, as I will be omitting wandering villager trades from this dataset. (Mechanically, they tend to offer only single emerald trades for items unique to only their character, and do not give out emeralds which messes with the second part of our research question.)
